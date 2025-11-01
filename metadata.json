@@ -1,0 +1,5 @@
+
+{
+  "name": "Clinical Records AI",
+  "description": "A modern web application for managing patient clinical records, generating medical prescriptions with PDF export, and leveraging AI for assistance. It allows doctors to register patient histories, track follow-ups, and search for patients efficiently."
+}

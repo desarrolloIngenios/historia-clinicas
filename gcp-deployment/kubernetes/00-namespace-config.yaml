@@ -1,0 +1,81 @@
+# Namespace para el sistema médico
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: clinical-records
+  labels:
+    name: clinical-records
+    environment: production
+    compliance: hipaa-gdpr
+---
+# ConfigMap para configuración de la aplicación
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clinical-records-config
+  namespace: clinical-records
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  RATE_LIMIT_WINDOW_MS: "900000"
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  TZ: "America/Bogota"
+---
+# Secret para datos sensibles
+apiVersion: v1
+kind: Secret
+metadata:
+  name: clinical-records-secrets
+  namespace: clinical-records
+type: Opaque
+data:
+  # Base64 encoded values - CAMBIAR EN PRODUCCIÓN
+  JWT_SECRET: eW91ci1zdXBlci1zZWNyZXQtand0LWtleS1jaGFuZ2UtaW4tcHJvZHVjdGlvbg==
+  ENCRYPTION_KEY: eW91ci0zMi1jaGFyYWN0ZXItZW5jcnlwdGlvbi1rZXktY2hhbmdlLWluLXByb2R1Y3Rpb24=
+  DB_PASSWORD: cG9zdGdyZXMtcGFzc3dvcmQtY2hhbmdlLWluLXByb2R1Y3Rpb24=
+---
+# ServiceAccount para pods
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: clinical-records-sa
+  namespace: clinical-records
+  annotations:
+    iam.gke.io/gcp-service-account: clinical-records@your-project-id.iam.gserviceaccount.com
+---
+# NetworkPolicy para seguridad de red
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: clinical-records-netpol
+  namespace: clinical-records
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: clinical-records
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: clinical-records
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 5432

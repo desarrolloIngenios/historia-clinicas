@@ -1,0 +1,1844 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical Records AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root">Cargando aplicación...</div>
+  
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <script>
+    console.log('Iniciando aplicación');
+    
+    const { useState, createElement: e, useEffect } = React;
+    const { createRoot } = ReactDOM;
+    
+    // Funciones para exportar PDFs
+    const exportToPDF = async (elementId, filename) => {
+      try {
+        const element = document.getElementById(elementId);
+        if (!element) {
+          alert('No se encontró el elemento para exportar');
+          return;
+        }
+        
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff'
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jspdf.jsPDF();
+        
+        const imgWidth = 210;
+        const pageHeight = 295;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        
+        let position = 0;
+        
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        while (heightLeft >= 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+        }
+        
+        pdf.save(filename);
+      } catch (error) {
+        console.error('Error generando PDF:', error);
+        alert('Error al generar el PDF');
+      }
+    };
+    
+    const exportPatientHistory = (patient) => {
+      const filename = `Historia_Clinica_${patient.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      exportToPDF('patient-history-export', filename);
+    };
+    
+    const exportFormula = (formula) => {
+      const filename = `Formula_Medica_${formula.nombrePaciente.replace(/\s+/g, '_')}_${formula.fecha}.pdf`;
+      exportToPDF('formula-export', filename);
+    };
+    
+    function ClinicalApp() {
+      const [currentPage, setCurrentPage] = useState('dashboard');
+      const [selectedPatientId, setSelectedPatientId] = useState(null);
+      const [patients, setPatients] = useState([
+        {
+          id: 1,
+          name: 'Juan Pérez',
+          phone: '555-0123',
+          records: 1,
+          historiaClinica: {
+            fechaNacimiento: '1985-05-15',
+            edad: 39,
+            motivo: 'Dolor de cabeza recurrente que ha empeorado en las últimas 2 semanas, especialmente en las mañanas',
+            antecedentes: 'Hipertensión arterial diagnosticada hace 3 años, en tratamiento con Enalapril. Padre hipertenso, madre diabética.',
+            examenFisico: 'TA: 140/90 mmHg, FC: 76 lpm, FR: 18 rpm, Temp: 36.5°C. Paciente consciente, orientado. Examen neurológico sin alteraciones focales.',
+            diagnostico: 'Cefalea tensional secundaria a hipertensión arterial mal controlada',
+            analisis: 'Se solicita hemograma completo, glicemia, creatinina, electrolitos. Control de presión arterial en casa.',
+            planManejo: 'Ajuste de medicación antihipertensiva, analgésicos para cefalea, control en 15 días, educación sobre medidas no farmacológicas',
+            fechaCreacion: '31/10/2025'
+          }
+        }
+      ]);
+      const [formulas, setFormulas] = useState([
+        {
+          id: 1,
+          pacienteId: 1,
+          nombrePaciente: 'Juan Pérez',
+          fecha: '2025-10-31',
+          medicamentos: '1. Enalapril 10mg - 1 tableta cada 12 horas\n2. Amlodipino 5mg - 1 tableta en la mañana\n3. Ibuprofeno 400mg - 1 tableta cada 8 horas por 5 días (solo si hay dolor)\n4. Omeprazol 20mg - 1 cápsula en ayunas mientras tome ibuprofeno',
+          indicaciones: 'Tomar la presión arterial diariamente en casa y llevar registro. Evitar sal en exceso. Ejercicio suave como caminata 30 min diarios. Regresar en 15 días o antes si persiste cefalea intensa.',
+          fechaCreacion: '31/10/2025'
+        }
+      ]);
+      const [appointments, setAppointments] = useState([
+        {
+          id: 1,
+          pacienteId: 1,
+          nombrePaciente: 'Juan Pérez',
+          fecha: '2025-11-15',
+          hora: '10:00',
+          tipo: 'Control',
+          motivo: 'Seguimiento hipertensión arterial',
+          estado: 'programada'
+        }
+      ]);
+      const [vitalSigns, setVitalSigns] = useState([
+        {
+          id: 1,
+          pacienteId: 1,
+          fecha: '2025-10-31',
+          presionSistolica: 140,
+          presionDiastolica: 90,
+          frecuenciaCardiaca: 76,
+          temperatura: 36.5,
+          peso: 75
+        },
+        {
+          id: 2,
+          pacienteId: 1,
+          fecha: '2025-10-15',
+          presionSistolica: 145,
+          presionDiastolica: 95,
+          frecuenciaCardiaca: 80,
+          temperatura: 36.8,
+          peso: 76
+        }
+      ]);
+      
+      console.log('Renderizando página:', currentPage);
+      
+      // Dashboard
+      if (currentPage === 'dashboard') {
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-blue-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard'),
+                e('button', {
+                  key: 'patients-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('patients')
+                }, 'Pacientes'),
+                e('button', {
+                  key: 'formulas-btn',
+                  className: 'px-4 py-2 bg-purple-500 text-white rounded',
+                  onClick: () => setCurrentPage('formulas')
+                }, 'Fórmulas'),
+                e('button', {
+                  key: 'new-btn',
+                  className: 'px-4 py-2 bg-green-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-patient')
+                }, 'Nueva Historia'),
+                e('button', {
+                  key: 'new-formula-btn',
+                  className: 'px-4 py-2 bg-orange-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-formula')
+                }, 'Nueva Fórmula')
+              ])
+            ])
+          ]),
+          
+          // Content
+          e('main', {
+            key: 'main',
+            className: 'max-w-6xl mx-auto p-6'
+          }, [
+            e('h2', {
+              key: 'title',
+              className: 'text-2xl font-bold mb-6'
+            }, 'Dashboard'),
+            
+            e('div', {
+              key: 'stats',
+              className: 'grid md:grid-cols-4 gap-6'
+            }, [
+              e('div', {
+                key: 'patients-card',
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'patients-title',
+                  className: 'text-lg font-semibold mb-2'
+                }, 'Total Pacientes'),
+                e('p', {
+                  key: 'patients-count',
+                  className: 'text-3xl font-bold text-blue-600'
+                }, patients.length.toString())
+              ]),
+              
+              e('div', {
+                key: 'records-card',
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'records-title',
+                  className: 'text-lg font-semibold mb-2'
+                }, 'Historias Clínicas'),
+                e('p', {
+                  key: 'records-count',
+                  className: 'text-3xl font-bold text-green-600'
+                }, patients.reduce((acc, p) => acc + p.records, 0).toString())
+              ]),
+              
+              e('div', {
+                key: 'formulas-card',
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'formulas-title',
+                  className: 'text-lg font-semibold mb-2'
+                }, 'Fórmulas Médicas'),
+                e('p', {
+                  key: 'formulas-count',
+                  className: 'text-3xl font-bold text-purple-600'
+                }, formulas.length.toString())
+              ]),
+              
+              e('div', {
+                key: 'quick-action',
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'action-title',
+                  className: 'text-lg font-semibold mb-4'
+                }, 'Acciones Rápidas'),
+                e('div', {
+                  key: 'action-buttons',
+                  className: 'space-y-2'
+                }, [
+                  e('button', {
+                    key: 'new-patient-btn',
+                    className: 'w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 text-sm',
+                    onClick: () => setCurrentPage('new-patient')
+                  }, '+ Nueva Historia'),
+                  e('button', {
+                    key: 'new-formula-btn',
+                    className: 'w-full bg-orange-600 text-white py-2 rounded-lg hover:bg-orange-700 text-sm',
+                    onClick: () => setCurrentPage('new-formula')
+                  }, '+ Nueva Fórmula')
+                ])
+              ])
+            ])
+          ])
+        ]);
+      }
+      
+      // Lista de pacientes
+      if (currentPage === 'patients') {
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header (mismo que dashboard)
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard'),
+                e('button', {
+                  key: 'patients-btn',
+                  className: 'px-4 py-2 bg-blue-500 text-white rounded',
+                  onClick: () => setCurrentPage('patients')
+                }, 'Pacientes'),
+                e('button', {
+                  key: 'new-btn',
+                  className: 'px-4 py-2 bg-green-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-patient')
+                }, 'Nuevo Paciente')
+              ])
+            ])
+          ]),
+          
+          e('main', {
+            key: 'main',
+            className: 'max-w-6xl mx-auto p-6'
+          }, [
+            e('h2', {
+              key: 'title',
+              className: 'text-2xl font-bold mb-6'
+            }, 'Lista de Pacientes'),
+            
+            e('div', {
+              key: 'patients-list',
+              className: 'space-y-4'
+            }, patients.map((patient, index) => 
+              e('div', {
+                key: patient.id,
+                className: 'bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow'
+              }, [
+                e('div', {
+                  key: 'header',
+                  className: 'flex justify-between items-start mb-4'
+                }, [
+                  e('div', { key: 'info' }, [
+                    e('h3', {
+                      key: 'name',
+                      className: 'text-xl font-semibold text-gray-800'
+                    }, patient.name),
+                    e('p', {
+                      key: 'phone',
+                      className: 'text-gray-600'
+                    }, '📞 ' + patient.phone)
+                  ]),
+                  e('span', {
+                    key: 'badge',
+                    className: 'bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm'
+                  }, patient.records + ' historia(s)')
+                ]),
+                
+                // Mostrar información de la historia clínica si existe
+                patient.historiaClinica ? e('div', {
+                  key: 'historia-info',
+                  className: 'border-t pt-4 space-y-2'
+                }, [
+                  e('div', {
+                    key: 'fecha-edad',
+                    className: 'flex gap-4 text-sm text-gray-600'
+                  }, [
+                    e('span', { key: 'edad' }, '👤 Edad: ' + patient.historiaClinica.edad + ' años'),
+                    e('span', { key: 'fecha' }, '📅 Creado: ' + patient.historiaClinica.fechaCreacion)
+                  ]),
+                  
+                  patient.historiaClinica.motivo ? e('p', {
+                    key: 'motivo',
+                    className: 'text-sm'
+                  }, [
+                    e('strong', { key: 'motivo-label' }, 'Motivo: '),
+                    patient.historiaClinica.motivo.substring(0, 100) + (patient.historiaClinica.motivo.length > 100 ? '...' : '')
+                  ]) : null,
+                  
+                  patient.historiaClinica.diagnostico ? e('p', {
+                    key: 'diagnostico',
+                    className: 'text-sm'
+                  }, [
+                    e('strong', { key: 'diagnostico-label' }, 'Diagnóstico: '),
+                    patient.historiaClinica.diagnostico.substring(0, 100) + (patient.historiaClinica.diagnostico.length > 100 ? '...' : '')
+                  ]) : null
+                ].filter(Boolean)) : e('p', {
+                  key: 'no-historia',
+                  className: 'text-gray-500 text-sm italic'
+                }, 'Sin historia clínica detallada'),
+                
+                // Botón para ver detalles completos
+                e('div', {
+                  key: 'actions',
+                  className: 'mt-4 pt-4 border-t'
+                }, [
+                  e('button', {
+                    key: 'view-details',
+                    className: 'bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm',
+                    onClick: () => {
+                      setSelectedPatientId(patient.id);
+                      setCurrentPage('patient-detail');
+                    }
+                  }, '👁️ Ver Historia Completa')
+                ])
+              ])
+            ))
+          ])
+        ]);
+      }
+      
+      // Formulario nuevo paciente
+      if (currentPage === 'new-patient') {
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard'),
+                e('button', {
+                  key: 'patients-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('patients')
+                }, 'Pacientes'),
+                e('button', {
+                  key: 'new-btn',
+                  className: 'px-4 py-2 bg-green-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-patient')
+                }, 'Nuevo Paciente')
+              ])
+            ])
+          ]),
+          
+          e('main', {
+            key: 'main',
+            className: 'max-w-4xl mx-auto p-6'
+          }, [
+            e('h2', {
+              key: 'title',
+              className: 'text-2xl font-bold mb-6'
+            }, 'Nueva Historia Clínica'),
+            
+            e('div', {
+              key: 'form-container',
+              className: 'bg-white p-8 rounded-lg shadow'
+            }, [
+              e('form', {
+                key: 'form',
+                className: 'space-y-6',
+                onSubmit: (e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target);
+                  
+                  // Calcular edad
+                  const fechaNacimiento = new Date(formData.get('fechaNacimiento'));
+                  const hoy = new Date();
+                  let edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
+                  const m = hoy.getMonth() - fechaNacimiento.getMonth();
+                  if (m < 0 || (m === 0 && hoy.getDate() < fechaNacimiento.getDate())) edad--;
+                  
+                  const newPatient = {
+                    id: Date.now(),
+                    name: formData.get('nombrePaciente'),
+                    phone: formData.get('telefono') || 'No especificado',
+                    records: 1,
+                    historiaClinica: {
+                      fechaNacimiento: formData.get('fechaNacimiento'),
+                      edad: edad,
+                      motivo: formData.get('motivo'),
+                      antecedentes: formData.get('antecedentes'),
+                      examenFisico: formData.get('examenFisico'),
+                      diagnostico: formData.get('diagnostico'),
+                      analisis: formData.get('analisis'),
+                      planManejo: formData.get('planManejo'),
+                      fechaCreacion: new Date().toLocaleDateString('es-ES')
+                    }
+                  };
+                  
+                  setPatients([...patients, newPatient]);
+                  alert('Historia clínica creada exitosamente!');
+                  setCurrentPage('patients');
+                }
+              }, [
+                // Datos del paciente
+                e('div', {
+                  key: 'patient-section',
+                  className: 'border-b pb-6'
+                }, [
+                  e('h3', {
+                    key: 'patient-title',
+                    className: 'text-lg font-semibold mb-4 text-blue-700'
+                  }, '👤 Datos del Paciente'),
+                  
+                  e('div', {
+                    key: 'patient-grid',
+                    className: 'grid md:grid-cols-2 gap-4'
+                  }, [
+                    e('div', {
+                      key: 'nombre',
+                      className: 'space-y-2'
+                    }, [
+                      e('label', {
+                        key: 'nombre-label',
+                        className: 'block text-sm font-medium text-gray-700'
+                      }, 'Nombre del paciente *'),
+                      e('input', {
+                        key: 'nombre-input',
+                        name: 'nombrePaciente',
+                        type: 'text',
+                        required: true,
+                        className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                        placeholder: 'Nombre completo del paciente'
+                      })
+                    ]),
+                    
+                    e('div', {
+                      key: 'telefono',
+                      className: 'space-y-2'
+                    }, [
+                      e('label', {
+                        key: 'telefono-label',
+                        className: 'block text-sm font-medium text-gray-700'
+                      }, 'Teléfono'),
+                      e('input', {
+                        key: 'telefono-input',
+                        name: 'telefono',
+                        type: 'tel',
+                        className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                        placeholder: 'Ej: 555-0123'
+                      })
+                    ]),
+                    
+                    e('div', {
+                      key: 'fecha-nacimiento',
+                      className: 'space-y-2'
+                    }, [
+                      e('label', {
+                        key: 'fecha-label',
+                        className: 'block text-sm font-medium text-gray-700'
+                      }, 'Fecha de nacimiento *'),
+                      e('input', {
+                        key: 'fecha-input',
+                        name: 'fechaNacimiento',
+                        type: 'date',
+                        required: true,
+                        className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                        onChange: (e) => {
+                          // Calcular edad automáticamente
+                          const fecha = new Date(e.target.value);
+                          if (!isNaN(fecha)) {
+                            const hoy = new Date();
+                            let edad = hoy.getFullYear() - fecha.getFullYear();
+                            const m = hoy.getMonth() - fecha.getMonth();
+                            if (m < 0 || (m === 0 && hoy.getDate() < fecha.getDate())) edad--;
+                            const edadInput = document.querySelector('input[name="edad"]');
+                            if (edadInput) edadInput.value = edad + ' años';
+                          }
+                        }
+                      })
+                    ]),
+                    
+                    e('div', {
+                      key: 'edad',
+                      className: 'space-y-2'
+                    }, [
+                      e('label', {
+                        key: 'edad-label',
+                        className: 'block text-sm font-medium text-gray-700'
+                      }, 'Edad'),
+                      e('input', {
+                        key: 'edad-input',
+                        name: 'edad',
+                        type: 'text',
+                        readOnly: true,
+                        className: 'w-full p-3 border rounded-md bg-gray-50',
+                        placeholder: 'Se calcula automáticamente'
+                      })
+                    ])
+                  ])
+                ]),
+                
+                // Historia clínica
+                e('div', {
+                  key: 'historia-section',
+                  className: 'space-y-4'
+                }, [
+                  e('h3', {
+                    key: 'historia-title',
+                    className: 'text-lg font-semibold mb-4 text-green-700'
+                  }, '📋 Historia Clínica'),
+                  
+                  e('div', {
+                    key: 'motivo',
+                    className: 'space-y-2'
+                  }, [
+                    e('label', {
+                      key: 'motivo-label',
+                      className: 'block text-sm font-medium text-gray-700'
+                    }, 'Motivo de consulta'),
+                    e('textarea', {
+                      key: 'motivo-input',
+                      name: 'motivo',
+                      rows: 3,
+                      className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                      placeholder: 'Describa el motivo principal de la consulta...'
+                    })
+                  ]),
+                  
+                  e('div', {
+                    key: 'antecedentes',
+                    className: 'space-y-2'
+                  }, [
+                    e('label', {
+                      key: 'antecedentes-label',
+                      className: 'block text-sm font-medium text-gray-700'
+                    }, 'Antecedentes'),
+                    e('textarea', {
+                      key: 'antecedentes-input',
+                      name: 'antecedentes',
+                      rows: 3,
+                      className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                      placeholder: 'Antecedentes médicos, quirúrgicos, familiares, etc...'
+                    })
+                  ]),
+                  
+                  e('div', {
+                    key: 'examen',
+                    className: 'space-y-2'
+                  }, [
+                    e('label', {
+                      key: 'examen-label',
+                      className: 'block text-sm font-medium text-gray-700'
+                    }, 'Examen físico'),
+                    e('textarea', {
+                      key: 'examen-input',
+                      name: 'examenFisico',
+                      rows: 4,
+                      className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                      placeholder: 'Signos vitales, examen físico general y por sistemas...'
+                    })
+                  ]),
+                  
+                  e('div', {
+                    key: 'diagnostico',
+                    className: 'space-y-2'
+                  }, [
+                    e('label', {
+                      key: 'diagnostico-label',
+                      className: 'block text-sm font-medium text-gray-700'
+                    }, 'Diagnóstico *'),
+                    e('textarea', {
+                      key: 'diagnostico-input',
+                      name: 'diagnostico',
+                      rows: 3,
+                      required: true,
+                      className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                      placeholder: 'Diagnóstico principal y diferenciales...'
+                    })
+                  ]),
+                  
+                  e('div', {
+                    key: 'analisis',
+                    className: 'space-y-2'
+                  }, [
+                    e('label', {
+                      key: 'analisis-label',
+                      className: 'block text-sm font-medium text-gray-700'
+                    }, 'Análisis'),
+                    e('textarea', {
+                      key: 'analisis-input',
+                      name: 'analisis',
+                      rows: 3,
+                      className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                      placeholder: 'Análisis clínico, laboratorios solicitados, etc...'
+                    })
+                  ]),
+                  
+                  e('div', {
+                    key: 'plan',
+                    className: 'space-y-2'
+                  }, [
+                    e('label', {
+                      key: 'plan-label',
+                      className: 'block text-sm font-medium text-gray-700'
+                    }, 'Plan de manejo'),
+                    e('textarea', {
+                      key: 'plan-input',
+                      name: 'planManejo',
+                      rows: 4,
+                      className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500',
+                      placeholder: 'Plan terapéutico, medicamentos, seguimiento, recomendaciones...'
+                    })
+                  ])
+                ]),
+                
+                // Botones
+                e('div', { key: 'buttons', className: 'flex gap-4 pt-6' }, [
+                  e('button', {
+                    key: 'cancel',
+                    type: 'button',
+                    className: 'flex-1 bg-gray-500 text-white py-3 rounded-md hover:bg-gray-600 transition-colors',
+                    onClick: () => setCurrentPage('dashboard')
+                  }, 'Cancelar'),
+                  e('button', {
+                    key: 'submit',
+                    type: 'submit',
+                    className: 'flex-1 bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition-colors font-medium'
+                  }, 'Guardar Historia Clínica')
+                ])
+              ])
+            ])
+          ])
+        ]);
+      }
+      
+      // Lista de fórmulas médicas
+      if (currentPage === 'formulas') {
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header (similar estructura pero diferentes botones activos)
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard'),
+                e('button', {
+                  key: 'patients-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('patients')
+                }, 'Pacientes'),
+                e('button', {
+                  key: 'formulas-btn',
+                  className: 'px-4 py-2 bg-purple-500 text-white rounded',
+                  onClick: () => setCurrentPage('formulas')
+                }, 'Fórmulas'),
+                e('button', {
+                  key: 'new-btn',
+                  className: 'px-4 py-2 bg-green-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-patient')
+                }, 'Nueva Historia'),
+                e('button', {
+                  key: 'new-formula-btn',
+                  className: 'px-4 py-2 bg-orange-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-formula')
+                }, 'Nueva Fórmula')
+              ])
+            ])
+          ]),
+          
+          e('main', {
+            key: 'main',
+            className: 'max-w-6xl mx-auto p-6'
+          }, [
+            e('h2', {
+              key: 'title',
+              className: 'text-2xl font-bold mb-6'
+            }, 'Fórmulas Médicas'),
+            
+            formulas.length === 0 ? e('div', {
+              key: 'empty',
+              className: 'bg-white p-8 rounded-lg shadow text-center'
+            }, [
+              e('p', {
+                key: 'empty-text',
+                className: 'text-gray-500 mb-4'
+              }, 'No hay fórmulas médicas registradas'),
+              e('button', {
+                key: 'create-formula',
+                className: 'bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600',
+                onClick: () => setCurrentPage('new-formula')
+              }, 'Crear Primera Fórmula')
+            ]) : e('div', {
+              key: 'formulas-list',
+              className: 'space-y-4'
+            }, formulas.map((formula, index) => 
+              e('div', {
+                key: formula.id,
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'patient',
+                  className: 'text-xl font-semibold text-gray-800 mb-2'
+                }, formula.nombrePaciente),
+                e('p', {
+                  key: 'date',
+                  className: 'text-gray-600 mb-4'
+                }, '📅 ' + formula.fecha),
+                e('div', {
+                  key: 'content',
+                  className: 'space-y-2'
+                }, [
+                  e('p', {
+                    key: 'medicamentos',
+                    className: 'text-sm'
+                  }, [
+                    e('strong', { key: 'med-label' }, 'Medicamentos: '),
+                    formula.medicamentos.substring(0, 200) + (formula.medicamentos.length > 200 ? '...' : '')
+                  ]),
+                  formula.indicaciones ? e('p', {
+                    key: 'indicaciones',
+                    className: 'text-sm'
+                  }, [
+                    e('strong', { key: 'ind-label' }, 'Indicaciones: '),
+                    formula.indicaciones.substring(0, 150) + (formula.indicaciones.length > 150 ? '...' : '')
+                  ]) : null
+                ].filter(Boolean))
+              ])
+            ))
+          ])
+        ]);
+      }
+      
+      // Formulario nueva fórmula médica
+      if (currentPage === 'new-formula') {
+        const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
+        
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard'),
+                e('button', {
+                  key: 'patients-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('patients')
+                }, 'Pacientes'),
+                e('button', {
+                  key: 'formulas-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('formulas')
+                }, 'Fórmulas'),
+                e('button', {
+                  key: 'new-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-patient')
+                }, 'Nueva Historia'),
+                e('button', {
+                  key: 'new-formula-btn',
+                  className: 'px-4 py-2 bg-orange-500 text-white rounded',
+                  onClick: () => setCurrentPage('new-formula')
+                }, 'Nueva Fórmula')
+              ])
+            ])
+          ]),
+          
+          e('main', {
+            key: 'main',
+            className: 'max-w-3xl mx-auto p-6'
+          }, [
+            e('h2', {
+              key: 'title',
+              className: 'text-2xl font-bold mb-6'
+            }, 'Nueva Fórmula Médica'),
+            
+            e('div', {
+              key: 'form-container',
+              className: 'bg-white p-8 rounded-lg shadow'
+            }, [
+              e('form', {
+                key: 'form',
+                className: 'space-y-6',
+                onSubmit: (e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target);
+                  
+                  const newFormula = {
+                    id: Date.now(),
+                    pacienteId: selectedPatientId || null, // Asociar con paciente actual si viene de detalles
+                    nombrePaciente: formData.get('nombrePaciente'),
+                    fecha: formData.get('fecha'),
+                    medicamentos: formData.get('medicamentos'),
+                    indicaciones: formData.get('indicaciones'),
+                    fechaCreacion: new Date().toLocaleDateString('es-ES')
+                  };
+                  
+                  setFormulas([...formulas, newFormula]);
+                  alert('Fórmula médica creada exitosamente!');
+                  // Si viene de detalles del paciente, regresar ahí
+                  if (selectedPatientId) {
+                    setCurrentPage('patient-detail');
+                  } else {
+                    setCurrentPage('formulas');
+                  }
+                }
+              }, [
+                e('div', {
+                  key: 'patient-section',
+                  className: 'border-b pb-6'
+                }, [
+                  e('h3', {
+                    key: 'patient-title',
+                    className: 'text-lg font-semibold mb-4 text-orange-700'
+                  }, '💊 Fórmula Médica'),
+                  
+                  e('div', {
+                    key: 'patient-grid',
+                    className: 'grid md:grid-cols-2 gap-4'
+                  }, [
+                    e('div', {
+                      key: 'nombre',
+                      className: 'space-y-2'
+                    }, [
+                      e('label', {
+                        key: 'nombre-label',
+                        className: 'block text-sm font-medium text-gray-700'
+                      }, 'Nombre del paciente *'),
+                      e('input', {
+                        key: 'nombre-input',
+                        name: 'nombrePaciente',
+                        type: 'text',
+                        required: true,
+                        className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-orange-500',
+                        placeholder: 'Nombre completo del paciente',
+                        defaultValue: selectedPatient ? selectedPatient.name : ''
+                      })
+                    ]),
+                    
+                    e('div', {
+                      key: 'fecha',
+                      className: 'space-y-2'
+                    }, [
+                      e('label', {
+                        key: 'fecha-label',
+                        className: 'block text-sm font-medium text-gray-700'
+                      }, 'Fecha *'),
+                      e('input', {
+                        key: 'fecha-input',
+                        name: 'fecha',
+                        type: 'date',
+                        required: true,
+                        className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-orange-500',
+                        defaultValue: new Date().toISOString().split('T')[0]
+                      })
+                    ])
+                  ])
+                ]),
+                
+                e('div', {
+                  key: 'medicamentos',
+                  className: 'space-y-2'
+                }, [
+                  e('label', {
+                    key: 'medicamentos-label',
+                    className: 'block text-sm font-medium text-gray-700'
+                  }, 'Medicamentos *'),
+                  e('textarea', {
+                    key: 'medicamentos-input',
+                    name: 'medicamentos',
+                    rows: 6,
+                    required: true,
+                    className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-orange-500',
+                    placeholder: 'Ejemplo:\n1. Ibuprofeno 400mg - 1 tableta cada 8 horas por 5 días\n2. Omeprazol 20mg - 1 cápsula en ayunas por 7 días\n3. Acetaminofén 500mg - 1 tableta cada 6 horas si hay dolor'
+                  })
+                ]),
+                
+                e('div', {
+                  key: 'indicaciones',
+                  className: 'space-y-2'
+                }, [
+                  e('label', {
+                    key: 'indicaciones-label',
+                    className: 'block text-sm font-medium text-gray-700'
+                  }, 'Indicaciones adicionales'),
+                  e('textarea', {
+                    key: 'indicaciones-input',
+                    name: 'indicaciones',
+                    rows: 4,
+                    className: 'w-full p-3 border rounded-md focus:ring-2 focus:ring-orange-500',
+                    placeholder: 'Instrucciones especiales, precauciones, seguimiento, etc...'
+                  })
+                ]),
+                
+                // Botones
+                e('div', { key: 'buttons', className: 'flex gap-4 pt-6' }, [
+                  e('button', {
+                    key: 'cancel',
+                    type: 'button',
+                    className: 'flex-1 bg-gray-500 text-white py-3 rounded-md hover:bg-gray-600 transition-colors',
+                    onClick: () => setCurrentPage('formulas')
+                  }, 'Cancelar'),
+                  e('button', {
+                    key: 'submit',
+                    type: 'submit',
+                    className: 'flex-1 bg-orange-600 text-white py-3 rounded-md hover:bg-orange-700 transition-colors font-medium'
+                  }, 'Guardar Fórmula Médica')
+                ])
+              ])
+            ])
+          ])
+        ]);
+      }
+      
+      // Vista detallada del paciente
+      if (currentPage === 'patient-detail') {
+        const selectedPatient = patients.find(p => p.id === selectedPatientId);
+        const patientFormulas = formulas.filter(f => f.pacienteId === selectedPatientId);
+        
+        if (!selectedPatient) {
+          return e('div', { className: 'min-h-screen bg-gray-50 p-8' }, [
+            e('p', {}, 'Paciente no encontrado'),
+            e('button', {
+              className: 'mt-4 bg-blue-500 text-white px-4 py-2 rounded',
+              onClick: () => setCurrentPage('patients')
+            }, 'Volver a Pacientes')
+          ]);
+        }
+
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'back-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('patients')
+                }, '← Volver a Pacientes'),
+                e('button', {
+                  key: 'export-pdf-btn',
+                  className: 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700',
+                  onClick: () => exportPatientHistory(selectedPatient)
+                }, '📄 Exportar PDF'),
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard')
+              ])
+            ])
+          ]),
+          
+          e('main', {
+            key: 'main',
+            className: 'max-w-6xl mx-auto p-6',
+            id: 'patient-history-export'
+          }, [
+            // Header del paciente
+            e('div', {
+              key: 'patient-header',
+              className: 'bg-white p-6 rounded-lg shadow mb-6'
+            }, [
+              e('div', {
+                key: 'header-content',
+                className: 'flex justify-between items-start'
+              }, [
+                e('div', { key: 'patient-info' }, [
+                  e('h1', {
+                    key: 'patient-name',
+                    className: 'text-3xl font-bold text-gray-800 mb-2'
+                  }, selectedPatient.name),
+                  e('div', {
+                    key: 'basic-info',
+                    className: 'grid md:grid-cols-3 gap-4 text-sm text-gray-600'
+                  }, [
+                    e('p', { key: 'phone' }, [
+                      e('strong', {}, '📞 Teléfono: '),
+                      selectedPatient.phone
+                    ]),
+                    selectedPatient.historiaClinica ? e('p', { key: 'age' }, [
+                      e('strong', {}, '👤 Edad: '),
+                      selectedPatient.historiaClinica.edad + ' años'
+                    ]) : null,
+                    selectedPatient.historiaClinica ? e('p', { key: 'birth' }, [
+                      e('strong', {}, '🎂 F. Nacimiento: '),
+                      new Date(selectedPatient.historiaClinica.fechaNacimiento).toLocaleDateString('es-ES')
+                    ]) : null
+                  ].filter(Boolean))
+                ]),
+                e('div', {
+                  key: 'stats',
+                  className: 'text-right'
+                }, [
+                  e('div', {
+                    key: 'stats-grid',
+                    className: 'grid grid-cols-2 gap-4 text-center'
+                  }, [
+                    e('div', {
+                      key: 'records-stat',
+                      className: 'bg-green-100 p-3 rounded'
+                    }, [
+                      e('p', {
+                        key: 'records-num',
+                        className: 'text-2xl font-bold text-green-600'
+                      }, selectedPatient.records.toString()),
+                      e('p', {
+                        key: 'records-label',
+                        className: 'text-xs text-green-700'
+                      }, 'Historias')
+                    ]),
+                    e('div', {
+                      key: 'formulas-stat',
+                      className: 'bg-orange-100 p-3 rounded'
+                    }, [
+                      e('p', {
+                        key: 'formulas-num',
+                        className: 'text-2xl font-bold text-orange-600'
+                      }, patientFormulas.length.toString()),
+                      e('p', {
+                        key: 'formulas-label',
+                        className: 'text-xs text-orange-700'
+                      }, 'Fórmulas')
+                    ])
+                  ])
+                ])
+              ])
+            ]),
+            
+            // Historia clínica completa
+            selectedPatient.historiaClinica ? e('div', {
+              key: 'historia-clinica',
+              className: 'bg-white p-6 rounded-lg shadow mb-6'
+            }, [
+              e('h2', {
+                key: 'historia-title',
+                className: 'text-2xl font-bold text-green-700 mb-6 border-b pb-2'
+              }, '📋 Historia Clínica Completa'),
+              
+              e('div', {
+                key: 'historia-grid',
+                className: 'grid md:grid-cols-2 gap-6'
+              }, [
+                // Columna izquierda
+                e('div', {
+                  key: 'left-column',
+                  className: 'space-y-4'
+                }, [
+                  e('div', {
+                    key: 'motivo-section',
+                    className: 'bg-gray-50 p-4 rounded'
+                  }, [
+                    e('h3', {
+                      key: 'motivo-title',
+                      className: 'font-semibold text-gray-800 mb-2'
+                    }, 'Motivo de Consulta'),
+                    e('p', {
+                      key: 'motivo-content',
+                      className: 'text-gray-700 whitespace-pre-wrap'
+                    }, selectedPatient.historiaClinica.motivo || 'No especificado')
+                  ]),
+                  
+                  e('div', {
+                    key: 'antecedentes-section',
+                    className: 'bg-gray-50 p-4 rounded'
+                  }, [
+                    e('h3', {
+                      key: 'antecedentes-title',
+                      className: 'font-semibold text-gray-800 mb-2'
+                    }, 'Antecedentes'),
+                    e('p', {
+                      key: 'antecedentes-content',
+                      className: 'text-gray-700 whitespace-pre-wrap'
+                    }, selectedPatient.historiaClinica.antecedentes || 'No especificado')
+                  ]),
+                  
+                  e('div', {
+                    key: 'examen-section',
+                    className: 'bg-gray-50 p-4 rounded'
+                  }, [
+                    e('h3', {
+                      key: 'examen-title',
+                      className: 'font-semibold text-gray-800 mb-2'
+                    }, 'Examen Físico'),
+                    e('p', {
+                      key: 'examen-content',
+                      className: 'text-gray-700 whitespace-pre-wrap'
+                    }, selectedPatient.historiaClinica.examenFisico || 'No especificado')
+                  ])
+                ]),
+                
+                // Columna derecha
+                e('div', {
+                  key: 'right-column',
+                  className: 'space-y-4'
+                }, [
+                  e('div', {
+                    key: 'diagnostico-section',
+                    className: 'bg-blue-50 p-4 rounded border-l-4 border-blue-500'
+                  }, [
+                    e('h3', {
+                      key: 'diagnostico-title',
+                      className: 'font-semibold text-blue-800 mb-2'
+                    }, 'Diagnóstico'),
+                    e('p', {
+                      key: 'diagnostico-content',
+                      className: 'text-blue-700 whitespace-pre-wrap'
+                    }, selectedPatient.historiaClinica.diagnostico || 'No especificado')
+                  ]),
+                  
+                  e('div', {
+                    key: 'analisis-section',
+                    className: 'bg-gray-50 p-4 rounded'
+                  }, [
+                    e('h3', {
+                      key: 'analisis-title',
+                      className: 'font-semibold text-gray-800 mb-2'
+                    }, 'Análisis'),
+                    e('p', {
+                      key: 'analisis-content',
+                      className: 'text-gray-700 whitespace-pre-wrap'
+                    }, selectedPatient.historiaClinica.analisis || 'No especificado')
+                  ]),
+                  
+                  e('div', {
+                    key: 'plan-section',
+                    className: 'bg-green-50 p-4 rounded border-l-4 border-green-500'
+                  }, [
+                    e('h3', {
+                      key: 'plan-title',
+                      className: 'font-semibold text-green-800 mb-2'
+                    }, 'Plan de Manejo'),
+                    e('p', {
+                      key: 'plan-content',
+                      className: 'text-green-700 whitespace-pre-wrap'
+                    }, selectedPatient.historiaClinica.planManejo || 'No especificado')
+                  ])
+                ])
+              ]),
+              
+              e('div', {
+                key: 'fecha-info',
+                className: 'mt-4 pt-4 border-t text-sm text-gray-500'
+              }, [
+                e('p', {}, 'Historia clínica creada el: ' + selectedPatient.historiaClinica.fechaCreacion)
+              ])
+            ]) : e('div', {
+              key: 'no-historia',
+              className: 'bg-yellow-50 p-6 rounded-lg shadow mb-6 border-l-4 border-yellow-400'
+            }, [
+              e('p', {
+                key: 'no-historia-text',
+                className: 'text-yellow-800'
+              }, '⚠️ Este paciente no tiene historia clínica detallada registrada.')
+            ]),
+            
+            // Fórmulas médicas del paciente
+            e('div', {
+              key: 'formulas-section',
+              className: 'bg-white p-6 rounded-lg shadow'
+            }, [
+              e('div', {
+                key: 'formulas-header',
+                className: 'flex justify-between items-center mb-6 border-b pb-2'
+              }, [
+                e('h2', {
+                  key: 'formulas-title',
+                  className: 'text-2xl font-bold text-orange-700'
+                }, '💊 Fórmulas Médicas'),
+                e('button', {
+                  key: 'new-formula-btn',
+                  className: 'bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 transition-colors',
+                  onClick: () => setCurrentPage('new-formula')
+                }, '+ Nueva Fórmula'),
+                e('button', {
+                  key: 'charts-btn',
+                  className: 'bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors',
+                  onClick: () => setCurrentPage('charts')
+                }, '📊 Ver Gráficos')
+              ]),
+              
+              patientFormulas.length === 0 ? e('div', {
+                key: 'no-formulas',
+                className: 'bg-gray-50 p-6 rounded text-center'
+              }, [
+                e('p', {
+                  key: 'no-formulas-text',
+                  className: 'text-gray-500 mb-4'
+                }, 'No hay fórmulas médicas registradas para este paciente'),
+                e('button', {
+                  key: 'create-formula-btn',
+                  className: 'bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600',
+                  onClick: () => setCurrentPage('new-formula')
+                }, 'Crear Primera Fórmula')
+              ]) : e('div', {
+                key: 'formulas-list',
+                className: 'space-y-4'
+              }, patientFormulas.map((formula, index) => 
+                e('div', {
+                  key: formula.id,
+                  className: 'bg-orange-50 p-4 rounded border-l-4 border-orange-400'
+                }, [
+                  e('div', {
+                    key: 'formula-header',
+                    className: 'flex justify-between items-center mb-3'
+                  }, [
+                    e('h3', {
+                      key: 'formula-title',
+                      className: 'font-semibold text-orange-800'
+                    }, 'Fórmula Médica #' + (index + 1)),
+                    e('span', {
+                      key: 'formula-date',
+                      className: 'text-sm text-orange-600'
+                    }, new Date(formula.fecha).toLocaleDateString('es-ES'))
+                  ]),
+                  
+                  e('div', {
+                    key: 'formula-content',
+                    className: 'space-y-3'
+                  }, [
+                    e('div', {
+                      key: 'medicamentos',
+                      className: 'bg-white p-3 rounded'
+                    }, [
+                      e('h4', {
+                        key: 'med-title',
+                        className: 'font-medium text-gray-800 mb-2'
+                      }, 'Medicamentos:'),
+                      e('pre', {
+                        key: 'med-content',
+                        className: 'text-sm text-gray-700 whitespace-pre-wrap font-sans'
+                      }, formula.medicamentos)
+                    ]),
+                    
+                    formula.indicaciones ? e('div', {
+                      key: 'indicaciones',
+                      className: 'bg-white p-3 rounded'
+                    }, [
+                      e('h4', {
+                        key: 'ind-title',
+                        className: 'font-medium text-gray-800 mb-2'
+                      }, 'Indicaciones:'),
+                      e('p', {
+                        key: 'ind-content',
+                        className: 'text-sm text-gray-700 whitespace-pre-wrap'
+                      }, formula.indicaciones)
+                    ]) : null
+                  ].filter(Boolean))
+                ])
+              ))
+            ])
+          ])
+        ]);
+      }
+      
+      // Página de gráficos y evolución
+      if (currentPage === 'charts') {
+        const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
+        const patientVitalSigns = vitalSigns.filter(vs => vs.pacienteId === selectedPatientId);
+        
+        useEffect(() => {
+          if (patientVitalSigns.length > 0) {
+            // Crear gráfico de presión arterial
+            const ctx = document.getElementById('pressureChart');
+            if (ctx) {
+              new Chart(ctx, {
+                type: 'line',
+                data: {
+                  labels: patientVitalSigns.map(vs => new Date(vs.fecha).toLocaleDateString('es-ES')),
+                  datasets: [{
+                    label: 'Presión Sistólica',
+                    data: patientVitalSigns.map(vs => vs.presionSistolica),
+                    borderColor: 'rgb(239, 68, 68)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    tension: 0.1
+                  }, {
+                    label: 'Presión Diastólica',
+                    data: patientVitalSigns.map(vs => vs.presionDiastolica),
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.1
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: 'Evolución de la Presión Arterial'
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: false,
+                      min: 60,
+                      max: 180
+                    }
+                  }
+                }
+              });
+            }
+            
+            // Crear gráfico de peso
+            const ctxWeight = document.getElementById('weightChart');
+            if (ctxWeight) {
+              new Chart(ctxWeight, {
+                type: 'bar',
+                data: {
+                  labels: patientVitalSigns.map(vs => new Date(vs.fecha).toLocaleDateString('es-ES')),
+                  datasets: [{
+                    label: 'Peso (kg)',
+                    data: patientVitalSigns.map(vs => vs.peso),
+                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                    borderColor: 'rgb(34, 197, 94)',
+                    borderWidth: 1
+                  }]
+                },
+                options: {
+                  responsive: true,
+                  plugins: {
+                    title: {
+                      display: true,
+                      text: 'Evolución del Peso'
+                    }
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: false,
+                      min: 60
+                    }
+                  }
+                }
+              });
+            }
+          }
+        }, [patientVitalSigns]);
+
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header similar pero con navegación específica
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'back-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('patient-detail')
+                }, '← Volver a Paciente'),
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard')
+              ])
+            ])
+          ]),
+          
+          e('main', {
+            key: 'main',
+            className: 'max-w-6xl mx-auto p-6'
+          }, [
+            selectedPatient ? e('div', {
+              key: 'charts-content',
+              className: 'space-y-6'
+            }, [
+              e('h2', {
+                key: 'title',
+                className: 'text-2xl font-bold mb-6'
+              }, `📊 Evolución Médica - ${selectedPatient.name}`),
+              
+              // Gráficos
+              e('div', {
+                key: 'charts-grid',
+                className: 'grid md:grid-cols-2 gap-6'
+              }, [
+                // Gráfico de presión arterial
+                e('div', {
+                  key: 'pressure-chart',
+                  className: 'bg-white p-6 rounded-lg shadow'
+                }, [
+                  e('canvas', {
+                    key: 'pressure-canvas',
+                    id: 'pressureChart',
+                    className: 'w-full h-64'
+                  })
+                ]),
+                
+                // Gráfico de peso
+                e('div', {
+                  key: 'weight-chart',
+                  className: 'bg-white p-6 rounded-lg shadow'
+                }, [
+                  e('canvas', {
+                    key: 'weight-canvas',
+                    id: 'weightChart',
+                    className: 'w-full h-64'
+                  })
+                ])
+              ]),
+              
+              // Tabla de signos vitales
+              e('div', {
+                key: 'vitals-table',
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'vitals-title',
+                  className: 'text-lg font-semibold mb-4'
+                }, 'Registro de Signos Vitales'),
+                
+                e('div', {
+                  key: 'table-container',
+                  className: 'overflow-x-auto'
+                }, [
+                  e('table', {
+                    key: 'vitals-table-el',
+                    className: 'w-full text-sm'
+                  }, [
+                    e('thead', {
+                      key: 'thead',
+                      className: 'bg-gray-50'
+                    }, [
+                      e('tr', { key: 'header-row' }, [
+                        e('th', { key: 'fecha', className: 'p-3 text-left' }, 'Fecha'),
+                        e('th', { key: 'presion', className: 'p-3 text-left' }, 'Presión Arterial'),
+                        e('th', { key: 'fc', className: 'p-3 text-left' }, 'Freq. Cardíaca'),
+                        e('th', { key: 'temp', className: 'p-3 text-left' }, 'Temperatura'),
+                        e('th', { key: 'peso', className: 'p-3 text-left' }, 'Peso')
+                      ])
+                    ]),
+                    e('tbody', { key: 'tbody' }, 
+                      patientVitalSigns.map(vital => 
+                        e('tr', {
+                          key: vital.id,
+                          className: 'border-b hover:bg-gray-50'
+                        }, [
+                          e('td', { key: 'fecha', className: 'p-3' }, new Date(vital.fecha).toLocaleDateString('es-ES')),
+                          e('td', { key: 'presion', className: 'p-3' }, `${vital.presionSistolica}/${vital.presionDiastolica} mmHg`),
+                          e('td', { key: 'fc', className: 'p-3' }, `${vital.frecuenciaCardiaca} lpm`),
+                          e('td', { key: 'temp', className: 'p-3' }, `${vital.temperatura}°C`),
+                          e('td', { key: 'peso', className: 'p-3' }, `${vital.peso} kg`)
+                        ])
+                      )
+                    )
+                  ])
+                ])
+              ])
+            ]) : e('p', {}, 'Selecciona un paciente para ver gráficos')
+          ])
+        ]);
+      }
+          ])
+        ]);
+      }
+      
+      // Página de búsqueda
+      if (currentPage === 'search') {
+        const [searchTerm, setSearchTerm] = useState('');
+        
+        const filteredPatients = patients.filter(patient => 
+          patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (patient.historiaClinica && patient.historiaClinica.diagnostico && 
+           patient.historiaClinica.diagnostico.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+        
+        const filteredFormulas = formulas.filter(formula =>
+          formula.nombrePaciente.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          formula.medicamentos.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        return e('div', { className: 'min-h-screen bg-gray-50' }, [
+          // Header
+          e('nav', { 
+            key: 'nav',
+            className: 'bg-white shadow p-4' 
+          }, [
+            e('div', {
+              key: 'nav-content',
+              className: 'flex justify-between items-center max-w-6xl mx-auto'
+            }, [
+              e('h1', {
+                key: 'logo',
+                className: 'text-xl font-bold text-blue-600'
+              }, 'Clinical Records AI'),
+              e('div', {
+                key: 'nav-buttons',
+                className: 'space-x-2'
+              }, [
+                e('button', {
+                  key: 'dashboard-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('dashboard')
+                }, 'Dashboard'),
+                e('button', {
+                  key: 'patients-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('patients')
+                }, 'Pacientes'),
+                e('button', {
+                  key: 'formulas-btn',
+                  className: 'px-4 py-2 bg-gray-500 text-white rounded',
+                  onClick: () => setCurrentPage('formulas')
+                }, 'Fórmulas'),
+                e('button', {
+                  key: 'search-btn',
+                  className: 'px-4 py-2 bg-indigo-500 text-white rounded',
+                  onClick: () => setCurrentPage('search')
+                }, 'Buscar')
+              ])
+            ])
+          ]),
+          
+          e('main', {
+            key: 'main',
+            className: 'max-w-6xl mx-auto p-6'
+          }, [
+            e('h2', {
+              key: 'title',
+              className: 'text-2xl font-bold mb-6'
+            }, '🔍 Buscar Pacientes y Registros'),
+            
+            // Buscador
+            e('div', {
+              key: 'search-box',
+              className: 'bg-white p-6 rounded-lg shadow mb-6'
+            }, [
+              e('div', {
+                key: 'search-input-group',
+                className: 'flex gap-4'
+              }, [
+                e('input', {
+                  key: 'search-input',
+                  type: 'text',
+                  placeholder: 'Buscar por nombre de paciente, diagnóstico, medicamento...',
+                  className: 'flex-1 p-3 border rounded-md focus:ring-2 focus:ring-indigo-500',
+                  value: searchTerm,
+                  onChange: (e) => setSearchTerm(e.target.value)
+                }),
+                e('button', {
+                  key: 'clear-btn',
+                  className: 'bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600',
+                  onClick: () => setSearchTerm('')
+                }, 'Limpiar')
+              ]),
+              
+              searchTerm && e('p', {
+                key: 'search-info',
+                className: 'mt-2 text-sm text-gray-600'
+              }, `Mostrando resultados para: "${searchTerm}"`)
+            ]),
+            
+            // Resultados
+            searchTerm ? e('div', {
+              key: 'results',
+              className: 'space-y-6'
+            }, [
+              // Pacientes encontrados
+              filteredPatients.length > 0 ? e('div', {
+                key: 'patients-results',
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'patients-title',
+                  className: 'text-xl font-semibold text-green-700 mb-4'
+                }, `👥 Pacientes Encontrados (${filteredPatients.length})`),
+                
+                e('div', {
+                  key: 'patients-list',
+                  className: 'space-y-3'
+                }, filteredPatients.map(patient => 
+                  e('div', {
+                    key: patient.id,
+                    className: 'border-l-4 border-green-400 bg-green-50 p-4 rounded'
+                  }, [
+                    e('div', {
+                      key: 'patient-header',
+                      className: 'flex justify-between items-start'
+                    }, [
+                      e('div', { key: 'patient-info' }, [
+                        e('h4', {
+                          key: 'patient-name',
+                          className: 'font-semibold text-green-800'
+                        }, patient.name),
+                        e('p', {
+                          key: 'patient-phone',
+                          className: 'text-sm text-green-600'
+                        }, patient.phone),
+                        patient.historiaClinica && patient.historiaClinica.diagnostico ? e('p', {
+                          key: 'patient-diagnosis',
+                          className: 'text-sm text-gray-600 mt-1'
+                        }, 'Diagnóstico: ' + patient.historiaClinica.diagnostico.substring(0, 100) + '...') : null
+                      ]),
+                      e('button', {
+                        key: 'view-patient',
+                        className: 'bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700',
+                        onClick: () => {
+                          setSelectedPatientId(patient.id);
+                          setCurrentPage('patient-detail');
+                        }
+                      }, 'Ver Detalles')
+                    ])
+                  ])
+                ))
+              ]) : null,
+              
+              // Fórmulas encontradas
+              filteredFormulas.length > 0 ? e('div', {
+                key: 'formulas-results',
+                className: 'bg-white p-6 rounded-lg shadow'
+              }, [
+                e('h3', {
+                  key: 'formulas-title',
+                  className: 'text-xl font-semibold text-orange-700 mb-4'
+                }, `💊 Fórmulas Encontradas (${filteredFormulas.length})`),
+                
+                e('div', {
+                  key: 'formulas-list',
+                  className: 'space-y-3'
+                }, filteredFormulas.map(formula => 
+                  e('div', {
+                    key: formula.id,
+                    className: 'border-l-4 border-orange-400 bg-orange-50 p-4 rounded'
+                  }, [
+                    e('div', {
+                      key: 'formula-header',
+                      className: 'flex justify-between items-start mb-2'
+                    }, [
+                      e('div', { key: 'formula-info' }, [
+                        e('h4', {
+                          key: 'formula-patient',
+                          className: 'font-semibold text-orange-800'
+                        }, formula.nombrePaciente),
+                        e('p', {
+                          key: 'formula-date',
+                          className: 'text-sm text-orange-600'
+                        }, new Date(formula.fecha).toLocaleDateString('es-ES'))
+                      ]),
+                      formula.pacienteId ? e('button', {
+                        key: 'view-formula-patient',
+                        className: 'bg-orange-600 text-white px-3 py-1 rounded text-sm hover:bg-orange-700',
+                        onClick: () => {
+                          setSelectedPatientId(formula.pacienteId);
+                          setCurrentPage('patient-detail');
+                        }
+                      }, 'Ver Paciente') : null
+                    ]),
+                    e('p', {
+                      key: 'formula-meds',
+                      className: 'text-sm text-gray-600 mt-2'
+                    }, 'Medicamentos: ' + formula.medicamentos.substring(0, 150) + (formula.medicamentos.length > 150 ? '...' : ''))
+                  ])
+                ))
+              ]) : null,
+              
+              // Sin resultados
+              filteredPatients.length === 0 && filteredFormulas.length === 0 ? e('div', {
+                key: 'no-results',
+                className: 'bg-gray-100 p-8 rounded-lg text-center'
+              }, [
+                e('p', {
+                  key: 'no-results-text',
+                  className: 'text-gray-600'
+                }, `No se encontraron resultados para "${searchTerm}"`)
+              ]) : null
+            ].filter(Boolean)) : e('div', {
+              key: 'search-help',
+              className: 'bg-blue-50 p-8 rounded-lg text-center'
+            }, [
+              e('h3', {
+                key: 'help-title',
+                className: 'text-lg font-semibold text-blue-800 mb-2'
+              }, 'Buscar Registros Médicos'),
+              e('p', {
+                key: 'help-text',
+                className: 'text-blue-600'
+              }, 'Ingresa un término de búsqueda para encontrar pacientes, diagnósticos o medicamentos')
+            ])
+          ])
+        ]);
+      }
+      
+      // Fallback
+      return e('div', {}, 'Página no encontrada');
+    }
+    
+    // Renderizar la aplicación
+    const container = document.getElementById('root');
+    const root = createRoot(container);
+    root.render(e(ClinicalApp));
+    
+    console.log('Aplicación renderizada correctamente');
+  </script>
+</body>
+</html>

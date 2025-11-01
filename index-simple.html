@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical Records AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://rsms.me/inter/inter.css');
+    html { font-family: 'Inter', sans-serif; }
+    body {
+      background-color: #f8fafc; /* slate-50 */
+    }
+    /* Custom scrollbar for a more modern look */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9; /* slate-100 */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #94a3b8; /* slate-400 */
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b; /* slate-500 */
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
+    }
+  }
+  </script>
+  <script type="module" src="/app-simple.js"></script>
+</body>
+</html>

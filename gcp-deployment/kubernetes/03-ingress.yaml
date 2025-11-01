@@ -1,0 +1,114 @@
+# Ingress con SSL/TLS para exposición pública
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clinical-records-ingress
+  namespace: clinical-records
+  labels:
+    app: clinical-records
+  annotations:
+    # Nginx Ingress Controller
+    kubernetes.io/ingress.class: "nginx"
+    
+    # SSL/TLS
+    cert-manager.io/issuer: "letsencrypt-prod"
+    
+    # Seguridad
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-RSA-AES128-GCM-SHA256,ECDHE-RSA-AES256-GCM-SHA384,ECDHE-RSA-AES128-SHA,ECDHE-RSA-AES256-SHA,ECDHE-RSA-AES128-SHA256,ECDHE-RSA-AES256-SHA384"
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit-rps: "10"
+    nginx.ingress.kubernetes.io/rate-limit-burst: "20"
+    
+    # Headers de seguridad
+    nginx.ingress.kubernetes.io/custom-http-errors: "404,403,500,502,503,504"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; img-src 'self' data: https:; connect-src 'self'; font-src 'self' https:;";
+    
+    # Tamaño de carga
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    
+    # Timeouts
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    
+    # Configuración de backend
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    
+spec:
+  tls:
+  - hosts:
+    - clinical-records.your-domain.com
+    - api.clinical-records.your-domain.com
+    secretName: clinical-records-tls
+  rules:
+  # Frontend
+  - host: clinical-records.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: clinical-records-frontend
+            port:
+              number: 8080
+  # Backend API
+  - host: api.clinical-records.your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: clinical-records-backend
+            port:
+              number: 8080
+      # Health check endpoint público (sin autenticación)
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: clinical-records-backend
+            port:
+              number: 8080
+---
+# Certificate para SSL/TLS automático
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: clinical-records-tls
+  namespace: clinical-records
+spec:
+  secretName: clinical-records-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+  - clinical-records.your-domain.com
+  - api.clinical-records.your-domain.com
+---
+# ClusterIssuer para Let's Encrypt
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@your-domain.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx

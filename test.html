@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical Records AI - Test</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
+    }
+  }
+  </script>
+  <script type="module">
+    import React from 'react';
+    import ReactDOM from 'react-dom/client';
+
+    function App() {
+      return React.createElement('div', {
+        className: 'min-h-screen bg-slate-50 p-8'
+      }, [
+        React.createElement('h1', {
+          key: 'title',
+          className: 'text-3xl font-bold text-slate-800 mb-4'
+        }, 'Sistema de Historias Clínicas'),
+        React.createElement('div', {
+          key: 'content',
+          className: 'bg-white p-6 rounded-lg shadow-md'
+        }, [
+          React.createElement('h2', {
+            key: 'subtitle',
+            className: 'text-xl font-semibold mb-4'
+          }, 'Aplicación cargada correctamente'),
+          React.createElement('p', {
+            key: 'description',
+            className: 'text-slate-600'
+          }, 'La aplicación React está funcionando. Ahora podemos cargar los componentes completos.')
+        ])
+      ]);
+    }
+
+    const rootElement = document.getElementById('root');
+    if (rootElement) {
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(React.createElement(App));
+    }
+  </script>
+</body>
+</html>

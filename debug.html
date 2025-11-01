@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clinical Records AI - Debug</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root">Cargando...</div>
+  
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client"
+    }
+  }
+  </script>
+  
+  <script type="module">
+    console.log('Script iniciado');
+    
+    try {
+      // Importar React
+      const React = await import('react');
+      const ReactDOM = await import('react-dom/client');
+      
+      console.log('React importado correctamente');
+      
+      // Componente simple de prueba
+      function TestApp() {
+        console.log('TestApp renderizando');
+        return React.createElement('div', {
+          className: 'min-h-screen bg-slate-50 p-8'
+        }, [
+          React.createElement('h1', {
+            key: 'title',
+            className: 'text-3xl font-bold text-blue-600 mb-4'
+          }, '✅ React Funciona Correctamente'),
+          React.createElement('p', {
+            key: 'status',
+            className: 'text-lg text-slate-700'
+          }, 'La aplicación básica está funcionando. Ahora cargando la app completa...')
+        ]);
+      }
+      
+      // Renderizar
+      const rootElement = document.getElementById('root');
+      if (rootElement) {
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(React.createElement(TestApp));
+        console.log('App renderizada');
+        
+        // Después de 2 segundos, cargar la app completa
+        setTimeout(() => {
+          import('./app-debug.js').then(module => {
+            console.log('App completa cargada');
+          }).catch(error => {
+            console.error('Error cargando app completa:', error);
+          });
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Error en el script:', error);
+      document.getElementById('root').innerHTML = '<div class="p-8 text-red-600"><h1>Error: ' + error.message + '</h1></div>';
+    }
+  </script>
+</body>
+</html>
